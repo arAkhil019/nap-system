@@ -1,25 +1,31 @@
 import logo from './logo.svg';
+import App from './components/App';
+
 import './App.css';
 
-function App() {
+function AppMain() {
+  // Import your components from src folder
+  // Example: import ComponentName from './components/ComponentName';
+  
   return (
     <div className="App">
       <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
+        {/* You can replace this with your components */}
+        {/* Example: <ComponentName /> */}
+        <h1>My React Application</h1>
+        <p>Start adding your components from the src folder</p>
       </header>
+      <main>
+        {/* Add your main content components here */}
+        {/* Example:
+          <YourComponent1 />
+          <YourComponent2 />
+        */
+       <App />
+        }
+      </main>
     </div>
   );
 }
 
-export default App;
+export default AppMain;
