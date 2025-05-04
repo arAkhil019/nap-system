@@ -25,3 +25,5 @@ yarn-error.log*
 #secrets
 firebaseConfig.json
 .env
+rough.txt
+NAPsLeaderboard.xlsx

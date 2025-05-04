@@ -4,6 +4,8 @@ import SingleNAPAssign from "./SingleNAPAssign";
 import AddVolunteerForm from "./AddVolunteerForm"; // Create this if it doesn't exist
 import MultiNAPsAssign from "./MultiNAPsAssign";
 import ImportVolunteers from "./ImportVolunteers";
+import SysConfig from "./SysConfig";
+
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 
@@ -86,6 +88,16 @@ export default function AdminDashboard() {
         >
           Bulk Assign NAP
         </button>
+        <button
+          className={`py-2 px-4 ${
+            activeTab === "sysConfig"
+              ? "border-b-2 border-blue-500 font-medium"
+              : ""
+          }`}
+          onClick={() => setActiveTab("sysConfig")}
+        >
+          System Configuration
+        </button>
       </div>
 
       {/* Tab Content */}
@@ -95,6 +107,7 @@ export default function AdminDashboard() {
         {activeTab === "addVolunteer" && <AddVolunteerForm />}
         {activeTab === "multiAssign" && <MultiNAPsAssign />}
         {activeTab === "importVolunteers" && <ImportVolunteers />}
+        {activeTab === "sysConfig" && <SysConfig />}
       </div>
     </div>
   );
