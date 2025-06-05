@@ -3,24 +3,26 @@ import { db } from "../firebase";
 import {
   collection,
   addDoc,
+  getDoc,
+  doc,
   getDocs,
   query,
   where,
   updateDoc,
   writeBatch,
 } from "firebase/firestore";
+// Import the CSS file
+import "../App.css";
 
 export default function MultiNAPsAssign() {
   const [formData, setFormData] = useState({
-    nvIdList: "",
     Category: "",
     Description: "",
     NAPs: "",
-    prefix: "NV-", // Default prefix for NV_IDs
+    VolunteerIDs: "",
   });
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState([]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -34,7 +36,7 @@ export default function MultiNAPsAssign() {
       setFormData((prev) => ({
         ...prev,
         [name]: value,
-        NAPs: napPoints, // Auto-set the NAP points
+        NAPs: napPoints, // Auto-set the NAP points 
       }));
     } else {
       setFormData((prev) => ({ ...prev, [name]: value }));
@@ -45,43 +47,83 @@ export default function MultiNAPsAssign() {
     e.preventDefault();
     setLoading(true);
     setMessage("");
-    setResults([]);
 
     try {
-      const { nvIdList, Category, NAPs, Description, prefix } = formData;
+      const { Category, NAPs, Description, VolunteerIDs } = formData;
       
-      // Parse NV_ID list (last 3 digits)
-      const nvIdSuffixes = nvIdList
-        .split('\n')
+      // Parse volunteer IDs (comma or newline separated)
+      const volunteerList = VolunteerIDs
+        .split(/[\n,]+/) // Split by newline or comma
         .map(id => id.trim())
-        .filter(id => id); // Remove empty lines
+        .filter(id => id !== "");
       
-      if (nvIdSuffixes.length === 0) {
-        throw new Error("Please enter at least one NV_ID");
+      if (volunteerList.length === 0) {
+        throw new Error("Please enter at least one Volunteer ID");
+      }
+      
+      // 1. Get the current log ID from systemConfig
+      const configRef = doc(db, "configs", "systemConfig");
+      const configDoc = await getDoc(configRef);
+
+      if (!configDoc.exists()) {
+        throw new Error("System configuration not found");
       }
 
-      const timestamp = new Date();
-      let successCount = 0;
-      let errorCount = 0;
-      const processingResults = [];
-
-      // Process each NV_ID
-      for (const suffix of nvIdSuffixes) {
+      let currLOG = configDoc.data().currLOG;
+      if (!currLOG) {
+        throw new Error("Log sequence not configured in system");
+      }
+      
+      // Create batch for efficient writes
+      const batch = writeBatch(db);
+      const successfulIDs = [];
+      const failedIDs = [];
+      
+      // Process each volunteer
+      for (const NV_ID of volunteerList) {
         try {
-          // Create full NV_ID
-          const NV_ID = suffix.length <= 3 ? `${prefix}${suffix.padStart(3, '0')}` : suffix;
-          const logId = `${NV_ID}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+          // Use the current log ID and prepare next one
+          const logId = currLOG;
           
-          // Add to LOGs collection
-          await addDoc(collection(db, "LOGs"), {
+          const prefix = currLOG.match(/^[A-Za-z]+/)[0]; 
+          const numPart = parseInt(currLOG.match(/\d+/)[0], 10);
+          const nextLogId = `${prefix}${(numPart + 1).toString().padStart(6, '0')}`;
+          currLOG = nextLogId;
+          
+          // Create a new LOG record
+          const logRef = doc(collection(db, "LOGs"));
+          batch.set(logRef, {
             NV_ID,
             Category,
             NAPs,
             Description,
-            Timestamp: timestamp,
+            Timestamp: new Date(),
             Log_ID: logId,
           });
+          
+          // Update vLOGs collection - find document for this NV_ID
+          const vLogsQuery = query(
+            collection(db, "vLOGs"),
+            where("NV_ID", "==", NV_ID)
+          );
+          const vLogsSnap = await getDocs(vLogsQuery);
 
+          if (!vLogsSnap.empty) {
+            // User exists in vLOGs, update logs array
+            const vLogsDoc = vLogsSnap.docs[0];
+            const currentLogs = vLogsDoc.data().logs || [];
+            batch.update(vLogsDoc.ref, {
+              logs: [...currentLogs, logId],
+            });
+          } else {
+            // Create new document in vLOGs
+            const vLogRef = doc(collection(db, "vLOGs"));
+            batch.set(vLogRef, {
+              NV_ID,
+              logs: [logId],
+            });
+          }
+          
           // Update NAPs collection
           const napQuery = query(
             collection(db, "NAPs"),
@@ -90,19 +132,21 @@ export default function MultiNAPsAssign() {
           const napSnap = await getDocs(napQuery);
           
           if (!napSnap.empty) {
+            // User exists in NAPs, update points
             const napDoc = napSnap.docs[0];
             const data = napDoc.data();
             const categoryValue = parseInt(data[Category] || 0, 10);
             const awarded = parseInt(NAPs, 10);
             const totalNAPs = parseInt(data.TotalNAPs || 0, 10);
 
-            await updateDoc(napDoc.ref, {
+            batch.update(napDoc.ref, {
               [Category]: categoryValue + awarded,
               TotalNAPs: totalNAPs + awarded,
             });
           } else {
-            // Create a new NAP document for this user
-            await addDoc(collection(db, "NAPs"), {
+            // Create new document in NAPs
+            const napRef = doc(collection(db, "NAPs"));
+            batch.set(napRef, {
               NV_ID,
               Roll_No: "",
               Unit: "",
@@ -110,56 +154,35 @@ export default function MultiNAPsAssign() {
               [Category]: parseInt(NAPs),
             });
           }
-
-          // Update vLOGs collection
-          const vLogsQuery = query(
-            collection(db, "vLOGs"),
-            where("NV_ID", "==", NV_ID)
-          );
-          const vLogsSnap = await getDocs(vLogsQuery);
-
-          if (!vLogsSnap.empty) {
-            const vLogsDoc = vLogsSnap.docs[0];
-            const currentLogs = vLogsDoc.data().logs || [];
-            await updateDoc(vLogsDoc.ref, {
-              logs: [...currentLogs, logId],
-            });
-          } else {
-            await addDoc(collection(db, "vLOGs"), {
-              NV_ID,
-              logs: [logId],
-            });
-          }
           
-          successCount++;
-          processingResults.push({
-            NV_ID,
-            status: "success",
-            message: "NAP points assigned successfully"
-          });
+          successfulIDs.push(NV_ID);
         } catch (error) {
-          errorCount++;
-          processingResults.push({
-            NV_ID: suffix,
-            status: "error",
-            message: error.message
-          });
+          console.error(`Error processing volunteer ${NV_ID}:`, error);
+          failedIDs.push(NV_ID);
         }
       }
-
-      setResults(processingResults);
-      setMessage(`Processed ${successCount} volunteers successfully. ${errorCount} errors.`);
       
-      if (successCount > 0) {
-        // Only clear form if at least one was successful
-        setFormData(prev => ({
-          ...prev,
-          nvIdList: "",
-          Category: "",
-          NAPs: "",
-          Description: ""
-        }));
+      // Update the system config with the latest log ID
+      batch.update(configRef, {
+        currLOG: currLOG
+      });
+      
+      // Commit all changes as a batch
+      await batch.commit();
+
+      // Show success message
+      if (failedIDs.length > 0) {
+        setMessage(`NAP points assigned to ${successfulIDs.length} volunteers. Failed for ${failedIDs.length} volunteers.`);
+      } else {
+        setMessage(`Successfully assigned NAP points to ${successfulIDs.length} volunteers.`);
       }
+      
+      setFormData({ 
+        Category: "", 
+        NAPs: "", 
+        Description: "", 
+        VolunteerIDs: "" 
+      });
     } catch (error) {
       console.error("Error assigning NAPs:", error);
       setMessage(`Error: ${error.message}`);
@@ -169,61 +192,37 @@ export default function MultiNAPsAssign() {
   };
 
   return (
-    <div className="max-w-lg mx-auto bg-white p-6 rounded-lg shadow-md">
-      <h2 className="text-xl font-bold mb-4">Assign NAP Points to Multiple Volunteers</h2>
+    <div className="card">
+      <h2 className="page-title">Assign NAP Points to Multiple Volunteers</h2>
 
       {message && (
         <div
-          className={`p-3 rounded mb-4 ${
-            message.includes("Error")
-              ? "bg-red-100 text-red-700"
-              : "bg-green-100 text-green-700"
-          }`}
+          className={message.includes("Error") ? "message message-error" : "message message-success"}
         >
           {message}
         </div>
       )}
 
       <form onSubmit={handleSubmit}>
-        <div className="grid gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              NV ID Prefix
-            </label>
-            <input
-              type="text"
-              name="prefix"
-              value={formData.prefix}
-              onChange={handleChange}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-500 focus:ring-opacity-50 p-2 border"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Default prefix for NV IDs (e.g., "NV-"). Will be added to each 3-digit ID.
-            </p>
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              NV ID List (Last 3 digits, one per line)
+        <div className="form-grid">
+          <div className="form-group">
+            <label className="form-label">
+              Volunteer IDs
             </label>
             <textarea
-              name="nvIdList"
-              value={formData.nvIdList}
+              name="VolunteerIDs"
+              value={formData.VolunteerIDs}
               onChange={handleChange}
               required
               rows="5"
-              placeholder="001
-002
-003"
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-500 focus:ring-opacity-50 p-2 border"
+              placeholder="Enter NV IDs separated by commas or new lines"
+              className="form-textarea"
             ></textarea>
-            <p className="text-xs text-gray-500 mt-1">
-              Enter each volunteer ID on a new line. For IDs like "NV-001", you can enter just "001" or the full ID.
-            </p>
+            <p className="form-help-text">Enter multiple NV IDs separated by commas or new lines</p>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
+          <div className="form-group">
+            <label className="form-label">
               Category
             </label>
             <select
@@ -231,7 +230,7 @@ export default function MultiNAPsAssign() {
               value={formData.Category}
               onChange={handleChange}
               required
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-500 focus:ring-opacity-50 p-2 border"
+              className="form-select"
             >
               <option value="">Select Category</option>
               <option value="1">
@@ -299,8 +298,8 @@ export default function MultiNAPsAssign() {
             </select>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
+          <div className="form-group">
+            <label className="form-label">
               NAP Points
             </label>
             <input
@@ -309,12 +308,12 @@ export default function MultiNAPsAssign() {
               value={formData.NAPs}
               onChange={handleChange}
               required
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-500 focus:ring-opacity-50 p-2 border"
+              className="form-input"
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
+          <div className="form-group">
+            <label className="form-label">
               Description
             </label>
             <textarea
@@ -323,40 +322,24 @@ export default function MultiNAPsAssign() {
               onChange={handleChange}
               required
               rows="3"
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-500 focus:ring-opacity-50 p-2 border"
-              placeholder="Enter a description that applies to all selected volunteers"
+              className="form-textarea"
+              placeholder="Event or activity description"
             ></textarea>
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+            className={`btn btn-primary btn-full mt-4 ${loading ? "disabled" : ""}`}
           >
-            {loading ? "Assigning..." : "Assign NAP Points to All"}
+            {loading ? (
+              <>
+                <span className="spinner">⟳</span> Assigning...
+              </>
+            ) : "Assign NAP Points to All"}
           </button>
         </div>
       </form>
-
-      {results.length > 0 && (
-        <div className="mt-6">
-          <h3 className="font-bold mb-2">Processing Results:</h3>
-          <div className="max-h-60 overflow-y-auto border rounded p-2">
-            <ul className="divide-y divide-gray-200">
-              {results.map((result, index) => (
-                <li key={index} className="py-2">
-                  <div className={`flex items-center ${
-                    result.status === "success" ? "text-green-700" : "text-red-700"
-                  }`}>
-                    <span className="font-medium mr-2">{result.NV_ID}:</span> 
-                    <span>{result.message}</span>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

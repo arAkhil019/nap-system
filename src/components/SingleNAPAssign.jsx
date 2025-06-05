@@ -3,11 +3,15 @@ import { db } from "../firebase";
 import {
   collection,
   addDoc,
+  getDoc,
+  doc,
   getDocs,
   query,
   where,
   updateDoc,
 } from "firebase/firestore";
+// Import the CSS file at the top of your component
+import "../App.css";
 
 export default function SingleNAPAssign() {
   const [formData, setFormData] = useState({
@@ -31,7 +35,7 @@ export default function SingleNAPAssign() {
       setFormData((prev) => ({
         ...prev,
         [name]: value,
-        NAPs: napPoints, // Auto-set the NAP points
+        NAPs: napPoints, // Auto-set the NAP points 
       }));
     } else {
       setFormData((prev) => ({ ...prev, [name]: value }));
@@ -45,20 +49,69 @@ export default function SingleNAPAssign() {
 
     try {
       const { NV_ID, Category, NAPs, Description } = formData;
-      const logId = `${NV_ID}-${Date.now()}`;
-      // Then keep the original logging code in the placeholder
-      const logRef = await addDoc(collection(db, "LOGs"), {
+      
+      // 1. Get the current log ID from systemConfig
+      const configRef = doc(db, "configs", "systemConfig");
+      const configDoc = await getDoc(configRef);
+
+      if (!configDoc.exists()) {
+        throw new Error("System configuration not found");
+      }
+
+      const currLOG = configDoc.data().currLOG;
+      if (!currLOG) {
+        throw new Error("Log sequence not configured in system");
+      }
+
+      // 2. Use the current log ID and prepare next one
+      const logId = currLOG;
+      const prefix = currLOG.match(/^[A-Za-z]+/)[0]; 
+      const numPart = parseInt(currLOG.match(/\d+/)[0], 10);
+      const nextLogId = `${prefix}${(numPart + 1).toString().padStart(6, '0')}`;
+
+      // 3. Update the system config with the new log ID
+      await updateDoc(configRef, {
+        currLOG: nextLogId
+      });
+      
+      // 4. Create a new LOG record
+      await addDoc(collection(db, "LOGs"), {
         ...formData,
         Timestamp: new Date(),
         Log_ID: logId,
       });
 
+      // 5. Update vLOGs collection - find or create document for this NV_ID
+      const vLogsQuery = query(
+        collection(db, "vLOGs"),
+        where("NV_ID", "==", NV_ID)
+      );
+      const vLogsSnap = await getDocs(vLogsQuery);
+
+      if (!vLogsSnap.empty) {
+        // User exists in vLOGs, update logs array
+        const vLogsDoc = vLogsSnap.docs[0];
+        const currentLogs = vLogsDoc.data().logs || [];
+        await updateDoc(vLogsDoc.ref, {
+          logs: [...currentLogs, logId],
+        });
+      } else {
+        // Create new document in vLOGs
+        await addDoc(collection(db, "vLOGs"), {
+          NV_ID,
+          logs: [logId],
+        });
+      }
+      
+      // 6. Update NAPs collection
       const napQuery = query(
         collection(db, "NAPs"),
         where("NV_ID", "==", NV_ID)
       );
       const napSnap = await getDocs(napQuery);
+      
       if (!napSnap.empty) {
+        // User exists in NAPs, update points
         const napDoc = napSnap.docs[0];
         const data = napDoc.data();
         const categoryValue = parseInt(data[Category] || 0, 10);
@@ -70,7 +123,7 @@ export default function SingleNAPAssign() {
           TotalNAPs: totalNAPs + awarded,
         });
       } else {
-        // Create a new NAP document for this user
+        // Create new document in NAPs
         await addDoc(collection(db, "NAPs"), {
           NV_ID,
           Roll_No: "",
@@ -78,31 +131,8 @@ export default function SingleNAPAssign() {
           TotalNAPs: parseInt(NAPs),
           [Category]: parseInt(NAPs),
         });
-      };
-      // For the vLOGs collection, we need to use the Log_ID that was created earlier
-
-      // Check if the user already has a document in vLOGs collection
-      const vLogsQuery = query(
-        collection(db, "vLOGs"),
-        where("NV_ID", "==", NV_ID)
-      );
-      const vLogsSnap = await getDocs(vLogsQuery);
-
-      if (!vLogsSnap.empty) {
-        // User already has a document, update it
-        console.log("User already has a document in vLOGs collection", logId);
-        const vLogsDoc = vLogsSnap.docs[0];
-        const currentLogs = vLogsDoc.data().logs || [];
-        await updateDoc(vLogsDoc.ref, {
-          logs: [...currentLogs, logId],
-        });
-      } else {
-        // Create a new document for this user
-        await addDoc(collection(db, "vLOGs"), {
-          NV_ID,
-          logs: [logId],
-        });
       }
+
       setMessage("NAP points assigned successfully!");
       setFormData({ NV_ID: "", Category: "", NAPs: "", Description: "" });
     } catch (error) {
@@ -114,25 +144,21 @@ export default function SingleNAPAssign() {
   };
 
   return (
-    <div className="max-w-md mx-auto bg-white p-6 rounded-lg shadow-md">
-      <h2 className="text-xl font-bold mb-4">Assign NAP Points</h2>
+    <div className="card">
+      <h2 className="page-title">Assign NAP Points</h2>
 
       {message && (
         <div
-          className={`p-3 rounded mb-4 ${
-            message.includes("Error")
-              ? "bg-red-100 text-red-700"
-              : "bg-green-100 text-green-700"
-          }`}
+          className={message.includes("Error") ? "message message-error" : "message message-success"}
         >
           {message}
         </div>
       )}
 
       <form onSubmit={handleSubmit}>
-        <div className="grid gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
+        <div className="form-grid">
+          <div className="form-group">
+            <label className="form-label">
               NV ID
             </label>
             <input
@@ -141,12 +167,12 @@ export default function SingleNAPAssign() {
               value={formData.NV_ID}
               onChange={handleChange}
               required
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-500 focus:ring-opacity-50 p-2 border"
+              className="form-input"
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
+          <div className="form-group">
+            <label className="form-label">
               Category
             </label>
             <select
@@ -154,7 +180,7 @@ export default function SingleNAPAssign() {
               value={formData.Category}
               onChange={handleChange}
               required
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-500 focus:ring-opacity-50 p-2 border"
+              className="form-select"
             >
               <option value="">Select Category</option>
               <option value="1">
@@ -222,8 +248,8 @@ export default function SingleNAPAssign() {
             </select>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
+          <div className="form-group">
+            <label className="form-label">
               NAP Points
             </label>
             <input
@@ -232,12 +258,12 @@ export default function SingleNAPAssign() {
               value={formData.NAPs}
               onChange={handleChange}
               required
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-500 focus:ring-opacity-50 p-2 border"
+              className="form-input"
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
+          <div className="form-group">
+            <label className="form-label">
               Description
             </label>
             <textarea
@@ -246,16 +272,20 @@ export default function SingleNAPAssign() {
               onChange={handleChange}
               required
               rows="3"
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-500 focus:ring-opacity-50 p-2 border"
+              className="form-textarea"
             ></textarea>
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+            className={`btn btn-primary btn-full ${loading ? "disabled" : ""}`}
           >
-            {loading ? "Assigning..." : "Assign NAP Points"}
+            {loading ? (
+              <>
+                <span className="spinner">⟳</span> Assigning...
+              </>
+            ) : "Assign NAP Points"}
           </button>
         </div>
       </form>

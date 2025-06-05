@@ -5,7 +5,8 @@ import AddVolunteerForm from "./AddVolunteerForm"; // Create this if it doesn't 
 import MultiNAPsAssign from "./MultiNAPsAssign";
 import ImportVolunteers from "./ImportVolunteers";
 import SysConfig from "./SysConfig";
-
+import "../App.css"; // Ensure this path is correct for your project structure
+import Display from "./Display"; 
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 
@@ -24,14 +25,14 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="container mx-auto p-4">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">NAP System Dashboard</h1>
-        <div className="flex items-center">
-          <span className="mr-4">{currentUser?.email}</span>
+    <div className="admin-dashboard-container">
+      <div className="dashboard-header">
+        <h1 className="dashboard-title">NAP System Dashboard</h1>
+        <div className="user-info">
+          <span className="user-email">{currentUser?.email}</span>
           <button
             onClick={handleLogout}
-            className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded"
+            className="btn btn-danger"
           >
             Logout
           </button>
@@ -39,75 +40,74 @@ export default function AdminDashboard() {
       </div>
 
       {/* Tab Navigation */}
-      <div className="flex border-b mb-4">
+      <div className="tab-navigation">
         <button
-          className={`py-2 px-4 ${
-            activeTab === "logs" ? "border-b-2 border-blue-500 font-medium" : ""
+          className={`tab-button ${
+            activeTab === "logs" ? "active" : ""
           }`}
           onClick={() => setActiveTab("logs")}
         >
           View Logs
         </button>
         <button
-          className={`py-2 px-4 ${
-            activeTab === "assign"
-              ? "border-b-2 border-blue-500 font-medium"
-              : ""
+          className={`tab-button ${
+            activeTab === "assign" ? "active" : ""
           }`}
           onClick={() => setActiveTab("assign")}
         >
           Assign NAP
         </button>
         <button
-          className={`py-2 px-4 ${
-            activeTab === "addVolunteer"
-              ? "border-b-2 border-blue-500 font-medium"
-              : ""
+          className={`tab-button ${
+            activeTab === "addVolunteer" ? "active" : ""
           }`}
           onClick={() => setActiveTab("addVolunteer")}
         >
           Add Volunteer
         </button>
         <button
-          className={`py-2 px-4 ${
-            activeTab === "importVolunteers"
-              ? "border-b-2 border-blue-500 font-medium"
-              : ""
+          className={`tab-button ${
+            activeTab === "importVolunteers" ? "active" : ""
           }`}
           onClick={() => setActiveTab("importVolunteers")}
         >
           Import Volunteers
         </button>
         <button
-          className={`py-2 px-4 ${
-            activeTab === "multiAssign"
-              ? "border-b-2 border-blue-500 font-medium"
-              : ""
+          className={`tab-button ${
+            activeTab === "multiAssign" ? "active" : ""
           }`}
           onClick={() => setActiveTab("multiAssign")}
         >
           Bulk Assign NAP
         </button>
         <button
-          className={`py-2 px-4 ${
-            activeTab === "sysConfig"
-              ? "border-b-2 border-blue-500 font-medium"
-              : ""
+          className={`tab-button ${
+            activeTab === "sysConfig" ? "active" : ""
           }`}
           onClick={() => setActiveTab("sysConfig")}
         >
           System Configuration
         </button>
+        <button
+          className={`tab-button ${
+            activeTab === "display" ? "active" : ""
+          }`}
+          onClick={() => setActiveTab("display")}
+        >
+          Display NAPs
+        </button>
       </div>
 
       {/* Tab Content */}
-      <div className="mt-4">
+      <div className="tab-content">
         {activeTab === "logs" && <VolunteerLogs />}
         {activeTab === "assign" && <SingleNAPAssign />}
         {activeTab === "addVolunteer" && <AddVolunteerForm />}
         {activeTab === "multiAssign" && <MultiNAPsAssign />}
         {activeTab === "importVolunteers" && <ImportVolunteers />}
         {activeTab === "sysConfig" && <SysConfig />}
+        {activeTab === "display" && <Display />}
       </div>
     </div>
   );
