@@ -4,6 +4,28 @@ import { collection, getDocs } from "firebase/firestore";
 import * as XLSX from 'xlsx'; 
 import "../App.css";
 
+const categoryLabels = {
+  "1": "1 - Sub-Group Meeting",
+  "2": "2 - Plantation",
+  "3": "3 - Documentation",
+  "4": "4 - College Event",
+  "5": "5 - Photography",
+  "6": "6 - Event Ideation",
+  "7": "7 - Poster Design",
+  "8": "8 - Publicity",
+  "9": "9 - Case Study Session",
+  "10": "10 - Case Study Presentation",
+  "11": "11 - Reel Editing",
+  "12": "12 - Charity Visit",
+  "13": "13 - Survey Submission",
+  "14": "14 - Swachh Bharat",
+  "15": "15 - TalesFromTown",
+  "16": "16 - Donations",
+  "17": "17 - Blood Donor Finding",
+  "18": "18 - Blood Donation",
+  "19": "19 - Other Activities"
+};
+
 export default function NAPsTable() {
   const [napsData, setNapsData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -16,6 +38,8 @@ export default function NAPsTable() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 25;
 
+  const [lastUpdated, setLastUpdated] = useState(null);
+
   const baseColumns = [
     { key: "NV_ID", label: "Volunteer ID" },
     { key: "Roll_No", label: "Roll Number" },
@@ -23,85 +47,62 @@ export default function NAPsTable() {
     { key: "TotalNAPs", label: "Total NAPs" }
   ];
 
-  const categoryLabels = {
-    "1": "1 - Sub-Group Meeting",
-    "2": "2 - Plantation",
-    "3": "3 - Documentation",
-    "4": "4 - College Event",
-    "5": "5 - Photography",
-    "6": "6 - Event Ideation",
-    "7": "7 - Poster Design",
-    "8": "8 - Publicity",
-    "9": "9 - Case Study Session",
-    "10": "10 - Case Study Presentation",
-    "11": "11 - Reel Editing",
-    "12": "12 - Charity Visit",
-    "13": "13 - Survey Submission",
-    "14": "14 - Swachh Bharat",
-    "15": "15 - TalesFromTown",
-    "16": "16 - Donations",
-    "17": "17 - Blood Donor Finding",
-    "18": "18 - Blood Donation",
-    "19": "19 - Other Activities"
+  const fetchNAPsData = async (forceRefresh = false) => {
+    setLoading(true);
+    try {
+      // Check cache first if not forcing refresh
+      const cachedData = sessionStorage.getItem('napsData');
+      const cachedTime = sessionStorage.getItem('napsDataTime');
+      
+      if (!forceRefresh && cachedData && cachedTime) {
+        // Use cached data if it's less than 5 minutes old (optional, but good practice)
+        // For now, we'll trust the cache until explicit refresh
+        setNapsData(JSON.parse(cachedData));
+        setLastUpdated(new Date(parseInt(cachedTime)));
+        setLoading(false);
+        return;
+      }
+
+      const querySnapshot = await getDocs(collection(db, "NAPs"));
+      const data = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      // Update state and cache
+      setNapsData(data);
+      const now = Date.now();
+      setLastUpdated(new Date(now));
+      sessionStorage.setItem('napsData', JSON.stringify(data));
+      sessionStorage.setItem('napsDataTime', now.toString());
+      
+    } catch (err) {
+      console.error("Error fetching NAPs data:", err);
+      setError("Failed to load NAPs data. Please try again later.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
-    const fetchNAPsData = async () => {
-      setLoading(true);
-      try {
-        const querySnapshot = await getDocs(collection(db, "NAPs"));
-        const data = querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-        setNapsData(data);
-      } catch (err) {
-        console.error("Error fetching NAPs data:", err);
-        setError("Failed to load NAPs data. Please try again later.");
-      } finally {
-        setLoading(false);
-      }
-    };
-    
     fetchNAPsData();
   }, []);
 
-  const allColumns = React.useMemo(() => {
-    if (napsData.length === 0 && baseColumns.length === 0) { 
-        if (napsData.length > 0 && napsData[0]) {
-            const firstItemKeys = Object.keys(napsData[0]);
-            const dynamicBaseColumns = firstItemKeys
-                .filter(key => key !== 'id' && isNaN(parseInt(key))) 
-                .map(key => ({ key, label: key.replace(/_/g, ' ') })); 
+  const handleRefresh = () => {
+    fetchNAPsData(true);
+  };
 
-            const categoryKeys = firstItemKeys
-                .filter(key => !isNaN(parseInt(key)) && parseInt(key) >= 1 && parseInt(key) <= 19)
-                .sort((a, b) => parseInt(a) - parseInt(b));
-            
-            return [
-                ...dynamicBaseColumns,
-                ...categoryKeys.map(key => ({
-                    key,
-                    label: categoryLabels[key] || `Category ${key}`
-                }))
-            ];
-        }
-        return []; 
-    }
-    
-    const dataToUseForKeys = napsData.length > 0 ? napsData[0] : {};
-    const categoryKeys = Object.keys(dataToUseForKeys)
-      .filter(key => !isNaN(parseInt(key)) && parseInt(key) >= 1 && parseInt(key) <= 19)
-      .sort((a, b) => parseInt(a) - parseInt(b));
+  const allColumns = React.useMemo(() => {
+    const categoryKeys = Object.keys(categoryLabels).sort((a, b) => parseInt(a) - parseInt(b));
     
     return [
       ...baseColumns,
       ...categoryKeys.map(key => ({
         key,
-        label: categoryLabels[key] || `Category ${key}`
+        label: categoryLabels[key]
       }))
     ];
-  }, [napsData, baseColumns]);
+  }, []);
 
 
   const requestSort = (key) => {
@@ -214,13 +215,23 @@ export default function NAPsTable() {
     <div className="card naps-table-component"> {/* Added specific class for overall component styling */}
       <div className="naps-table-header"> {/* Replaces flex justify-between items-center mb-4 */}
         <h2 className="page-title naps-table-title">NAPs Points Table</h2> {/* Replaces mb-0 */}
-        <button
-          onClick={handleExportToExcel}
-          className="btn btn-primary"
-          disabled={filteredData.length === 0}
-        >
-          Export to Excel
-        </button>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button
+            onClick={handleRefresh}
+            className="btn"
+            style={{ backgroundColor: '#6c757d', color: 'white' }}
+            title={lastUpdated ? `Last updated: ${lastUpdated.toLocaleTimeString()}` : 'Refresh data'}
+          >
+            Refresh ⟳
+          </button>
+          <button
+            onClick={handleExportToExcel}
+            className="btn btn-primary"
+            disabled={filteredData.length === 0}
+          >
+            Export to Excel
+          </button>
+        </div>
       </div>
       
       <div className="form-group naps-table-search-bar"> {/* Replaces mb-4, added specific class */}

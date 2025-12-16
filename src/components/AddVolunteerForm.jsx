@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { db } from '../firebase'; // Adjust path as needed
-import { collection, addDoc, query, where, getDocs } from 'firebase/firestore';
+import { collection, addDoc, query, where, getDoc,getDocs, doc, setDoc } from 'firebase/firestore';
 import '../App.css'; // Ensure this path is correct
 
 export default function AddVolunteerForm() {
@@ -21,6 +21,27 @@ export default function AddVolunteerForm() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  const ensureNapsAndVLogsExist = async (nvId, rollNo, unit) => {
+    // Ensure NAPs entry
+    const napDocRef = doc(db, "NAPs", nvId);
+    const napDocSnap = await getDoc(napDocRef);
+
+    if (!napDocSnap.exists()) {
+      const napData = { NV_ID: nvId, Roll_No: rollNo || "", Unit: unit || "", TotalNAPs: 0 };
+      for (let i = 1; i <= 19; i++) napData[i.toString()] = 0; 
+      await setDoc(napDocRef, napData);
+    }
+
+    // Ensure vLOGs entry
+    const vLogDocRef = doc(db, "vLOGs", nvId);
+    const vLogDocSnap = await getDoc(vLogDocRef);
+
+    if (!vLogDocSnap.exists()) {
+      await setDoc(vLogDocRef, { NV_ID: nvId, logs: [] });
+    }
+  };
+
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -34,19 +55,20 @@ export default function AddVolunteerForm() {
     }
 
     try {
-      // Check if NV_ID or Roll_No already exists
-      const volunteersRef = collection(db, "Volunteers");
-      const qNvId = query(volunteersRef, where("NV_ID", "==", formData.NV_ID));
-      const qRollNo = query(volunteersRef, where("Roll_No", "==", formData.Roll_No));
+      const nvId = formData.NV_ID.trim();
+      const volunteerDocRef = doc(db, "Volunteers", nvId);
+      const volunteerDocSnap = await getDoc(volunteerDocRef);
 
-      const nvIdSnapshot = await getDocs(qNvId);
-      if (!nvIdSnapshot.empty) {
+      if (volunteerDocSnap.exists()) {
         setMessage(`Error: Volunteer with NV_ID ${formData.NV_ID} already exists.`);
         setLoading(false);
         return;
       }
 
+      const volunteersRef = collection(db, "Volunteers");
+      const qRollNo = query(volunteersRef, where("Roll_No", "==", formData.Roll_No.trim()));
       const rollNoSnapshot = await getDocs(qRollNo);
+
       if (!rollNoSnapshot.empty) {
         setMessage(`Error: Volunteer with Roll Number ${formData.Roll_No} already exists.`);
         setLoading(false);
@@ -54,12 +76,20 @@ export default function AddVolunteerForm() {
       }
 
       // Add new volunteer
-      await addDoc(volunteersRef, {
+      const newVolunteerData = {
         ...formData,
-        DateJoined: new Date(), // Add a joined date
-      });
+        NV_ID: nvId,
+        Roll_No: formData.Roll_No.trim(),
+        DateJoined: new Date(),
+      };
+      
+      // Use setDoc to use NV_ID as document ID
+      await setDoc(volunteerDocRef, newVolunteerData);
 
-      setMessage('Volunteer added successfully!');
+      // Ensure NAPs and vLOGs entries exist
+      await ensureNapsAndVLogsExist(newVolunteerData.NV_ID, newVolunteerData.Roll_No, newVolunteerData.UNIT);
+
+      setMessage('Volunteer added successfully! Corresponding NAPs/vLOGs entries ensured.');
       setFormData({ // Reset form
         NV_ID: '', Roll_No: '', firstName: '', lastName: '', email: '', phone: '', Branch: '', UNIT: '',
       });

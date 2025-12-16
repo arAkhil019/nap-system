@@ -4,13 +4,23 @@
 }
 
 body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background-color: #f8f9fa; /* Very light gray background */
+  color: #212529; /* Dark gray text */
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  background-color: #f9fafb;
+  line-height: 1.6;
+}
+
+/* Barcode font utility (Libre Barcode 39) */
+.barcode-text {
+  font-family: 'Libre Barcode 39', cursive;
+  font-size: 40px; /* Large enough for scanning */
+  letter-spacing: 3px;
+  display: block;
+  text-align: center;
+  background: #fff;
+  padding: 4px 0;
+  user-select: none;
 }
 
 /* General Card Styling (used by multiple components) */
@@ -20,6 +30,41 @@ body {
   border-radius: 0.5rem; /* rounded-lg */
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); /* shadow-lg */
   margin-bottom: 1.5rem;
+}
+
+.admin-dashboard-container {
+  max-width: 1400px; /* Allow a bit more width for dashboards */
+  margin: 2rem auto; /* Centering with more top/bottom margin */
+  padding: 1.5rem 2rem; /* More padding */
+  background-color: #ffffff; /* White background for the main dashboard area */
+  border-radius: 8px; /* Slightly larger border radius */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); /* Softer, more modern shadow */
+}
+
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 1.5rem; /* Add padding to the bottom */
+  margin-bottom: 1.5rem; /* Space before tab navigation */
+  border-bottom: 1px solid #e9ecef; /* Lighter border */
+}
+
+.dashboard-title {
+  font-size: 1.75rem; /* Slightly larger title */
+  font-weight: 600; /* Semi-bold */
+  color: #343a40; /* Darker shade for title */
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+}
+
+.user-email {
+  margin-right: 1rem;
+  font-size: 0.9rem;
+  color: #6c757d; /* Muted color for email */
 }
 
 .page-title {
@@ -37,16 +82,14 @@ body {
   color: #1f2937; /* text-gray-800 */
 }
 
-/* Form Specific Styling */
-.form-layout {
-  /* If you were using space-y-4, you might add margin to form-group */
-}
 
 .form-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); /* Responsive grid */
-  gap: 1rem; /* space-x-4 or space-y-4 between grid items */
-  margin-bottom: 1.5rem;
+  gap: 1rem; /* Space between grid items */
+}
+
+.form-grid.two-columns {
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); /* Responsive 2 columns */
 }
 
 .form-group {
@@ -64,43 +107,61 @@ body {
 .form-input,
 .form-select, /* If you have select elements */
 .form-textarea { /* If you have textarea elements */
+  display: block;
   width: 100%;
-  padding: 0.5rem 0.75rem; /* p-2 or similar */
-  border: 1px solid #d1d5db; /* border border-gray-300 */
-  border-radius: 0.25rem; /* rounded */
+  padding: 0.6rem 0.75rem;
+  font-size: 0.9rem;
+  font-weight: 400;
+  line-height: 1.5;
+  color: #495057;
+  background-color: #fff;
+  background-clip: padding-box;
+  border: 1px solid #ced4da; /* Lighter border */
+  border-radius: 6px; /* Consistent border radius */
+  transition: border-color .15s ease-in-out,box-shadow .15s ease-in-out;
   box-sizing: border-box; /* Important for width: 100% */
 }
 
 .form-input:focus,
 .form-select:focus,
 .form-textarea:focus {
-  outline: none;
-  border-color: #3b82f6; /* focus:border-blue-500 */
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3); /* focus:ring focus:ring-blue-200 */
+  color: #495057;
+  background-color: #fff;
+  border-color: #86b7fe; /* Accent color focus - CHOOSE YOUR ACCENT */
+  outline: 0;
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25); /* Accent color focus shadow - CHOOSE YOUR ACCENT */
 }
 
 /* Button Styling (ensure these are generic enough or create variants) */
 .btn {
-  display: inline-block;
-  padding: 0.6rem 1.2rem;
+  padding: 0.5rem 1rem; /* Adjust padding for a balanced look */
+  font-size: 0.9rem;
   font-weight: 500;
-  text-align: center;
-  border-radius: 0.25rem;
+  border-radius: 6px; /* Consistent border radius */
+  text-decoration: none;
   cursor: pointer;
-  transition: background-color 0.2s, border-color 0.2s;
   border: 1px solid transparent;
+  transition: all 0.2s ease-in-out;
 }
 
 .btn-primary {
-  background-color: #3b82f6; /* bg-blue-600 */
-  color: white;
+  color: #fff;
+  background-color: #007bff; /* Accent color - CHOOSE YOUR ACCENT */
+  border-color: #007bff;   /* Accent color - CHOOSE YOUR ACCENT */
 }
 .btn-primary:hover {
-  background-color: #2563eb; /* hover:bg-blue-700 */
+  color: #fff;
+  background-color: #0069d9;
+  border-color: #0062cc;
+}
+.btn-primary:focus {
+  box-shadow: 0 0 0 0.2rem rgba(38, 143, 255, 0.5); /* Accent color focus shadow */
 }
 .btn-primary:disabled {
-  background-color: #9ca3af; /* bg-gray-400 */
-  cursor: not-allowed;
+  color: #fff;
+  background-color: #007bff;
+  border-color: #007bff;
+  opacity: 0.65;
 }
 
 .btn-secondary {
@@ -132,6 +193,9 @@ body {
 .btn-danger:hover {
   background-color: #dc2626; /* hover:bg-red-600 */
 }
+.btn-danger:focus {
+  box-shadow: 0 0 0 0.2rem rgba(225, 83, 97, 0.5);
+}
 
 .btn-small {
   padding: 0.25rem 0.5rem;
@@ -140,7 +204,8 @@ body {
 
 .btn-full-width {
   width: 100%;
-  margin-top: 1rem;
+  display: block; /* Or 'flex' if you need to center content within it */
+  margin-top: 1rem; /* Example margin, adjust as needed */
 }
 
 
@@ -279,47 +344,44 @@ body {
 /* Tab Navigation (already provided in AdminDashboard, ensure consistency) */
 .tab-navigation {
   display: flex;
-  border-bottom: 1px solid #e5e7eb; /* border-b */
-  margin-bottom: 1rem; /* mb-4 */
-  overflow-x: auto;
+  margin-bottom: 2rem; /* More space below tabs */
+  border-bottom: none; /* Remove the old border, we'll style buttons directly */
+  overflow-x: auto; /* Keep for responsiveness */
+  padding-bottom: 2px; /* Space for active indicator to not be cut off */
 }
 
 .tab-button {
-  padding: 0.75rem 1rem; /* py-2 px-4 */
-  border: none;
+  padding: 0.75rem 1.25rem; /* More padding for a larger click target */
+  margin-right: 0.5rem; /* Space between tabs */
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #6c757d; /* Muted color for inactive tabs */
   background-color: transparent;
+  border: none;
+  border-bottom: 3px solid transparent; /* Placeholder for active indicator */
   cursor: pointer;
-  color: #374151; /* Default text color */
+  transition: color 0.2s ease-in-out, border-bottom-color 0.2s ease-in-out;
   white-space: nowrap;
-  border-bottom: 2px solid transparent; /* For inactive state */
-  margin-bottom: -1px; /* Align with the container's border */
+  border-radius: 6px 6px 0 0; /* Slight rounding at the top */
 }
 
 .tab-button:hover {
-  color: #1d4ed8; /* Example hover color */
-  border-bottom-color: #9ca3af; /* Lighter border on hover for inactive */
+  color: #007bff; /* Accent color on hover - CHOOSE YOUR ACCENT */
+  /* background-color: #e9ecef; /* Subtle background on hover */
 }
 
 .tab-button.active {
-  border-bottom: 2px solid #3b82f6; /* border-b-2 border-blue-500 */
-  font-weight: 500; /* font-medium */
-  color: #3b82f6; /* Active tab text color */
+  color: #007bff; /* Accent color for active tab - CHOOSE YOUR ACCENT */
+  border-bottom-color: #007bff; /* Accent color for indicator - CHOOSE YOUR ACCENT */
+  font-weight: 600; /* Make active tab text slightly bolder */
 }
 
 .tab-content {
-  margin-top: 1rem; /* mt-4 */
+  padding-top: 1rem; /* Add some padding if content feels too close to tabs */
 }
 
-/* Styles specific to NAPsTable (Display.jsx) */
-.naps-table-component {
-  /* Add any overall container styling for the NAPsTable if needed, 
-     beyond what .card provides */
-}
 
-.naps-table-loading-error-container {
-    /* Styles for the container when loading or error occurs */
-}
-
+/* NAPs Table Specific Styles */
 .naps-table-spinner-container {
   display: flex;
   justify-content: center;
@@ -506,4 +568,132 @@ body {
   background-color: #ffffff; /* Match general td background */
 }
 
-/* ... rest of your App.css styles ... */
+/* Login Page Specific Styles */
+.login-page-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f8f9fa; /* Matches dashboard body background */
+  padding: 2rem 1rem; /* py-12 px-4 sm:px-6 lg:px-8 - simplified */
+  box-sizing: border-box;
+}
+
+.login-form-card {
+  max-width: 400px; /* max-w-md */
+  width: 100%;
+  /* .card class already provides background, padding, border-radius, shadow */
+}
+
+.login-title {
+  margin-top: 1rem; /* mt-6 (approx) */
+  margin-bottom: 1.5rem; /* space-y-8 between title and error/form */
+  text-align: center;
+  font-size: 1.875rem; /* text-3xl */
+  font-weight: 700; /* font-extrabold */
+  color: #343a40; /* text-gray-900 (using our darker text color) */
+}
+
+.login-error-message {
+  margin-bottom: 1.5rem; /* Part of space-y-8 */
+  /* .message and .message-error already provide styling */
+}
+
+/* .login-form { */
+  /* margin-top: 2rem; /* mt-8 (approx) */
+  /* .form-group provides bottom margin, creating space-y effect */
+/* } */
+
+/* If inputs need specific adjustments for login form, e.g., if they were stacked tightly */
+/* .login-input { */
+  /* If you had specific rounded-t-md or rounded-b-md,
+     you might need to adjust border-radius here or ensure .form-input is sufficient.
+     The current .form-input has a general border-radius: 6px;
+     If the inputs should look like one block, you'd remove top/bottom borders
+     and adjust radius on the first/last. For simplicity, using standard .form-input.
+  */
+/* } */
+
+.login-submit-button {
+  /* .btn, .btn-primary, .btn-full-width already provide most styles */
+  /* Tailwind's 'group relative flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
+     is largely covered by .btn .btn-primary .btn-full-width.
+     The py-2 px-4 is slightly different from .btn's default padding, adjust .btn if needed globally or override here.
+     text-sm is also slightly different, adjust .btn or override.
+  */
+  padding-top: 0.75rem; /* py-2 equivalent if .btn padding is different */
+  padding-bottom: 0.75rem;
+  font-size: 0.875rem; /* text-sm */
+}
+
+/* If you want to hide sr-only labels visually but keep them for accessibility */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Edit Volunteers Specific Styles */
+.edit-volunteers-container .table-container {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+  overflow-x: auto; /* For smaller screens */
+}
+
+.edit-volunteers-container .table th,
+.edit-volunteers-container .table td {
+  padding: 0.6rem 0.4rem; /* Adjust padding for more content */
+  font-size: 0.85rem;
+  white-space: nowrap; /* Prevent wrapping in cells, rely on scroll */
+}
+
+.edit-volunteers-container .table td button {
+  margin-right: 0.25rem;
+}
+.edit-volunteers-container .table td button:last-child {
+  margin-right: 0;
+}
+
+
+.edit-form-modal {
+  position: fixed; /* Or absolute if container is relative */
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000; /* Ensure it's on top */
+  padding: 1rem;
+  box-sizing: border-box;
+}
+
+.edit-form-modal .card {
+  width: 100%;
+  max-width: 700px; /* Adjust as needed */
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.edit-form-modal .section-title {
+  margin-bottom: 1.5rem;
+}
+
+.form-actions {
+  margin-top: 1.5rem;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.text-center {
+  text-align: center;
+}

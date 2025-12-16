@@ -1,40 +1,31 @@
-import React, { useState, useEffect } from "react";
-import { db } from "../firebase";
-import {
-  collection,
-  doc,
-  getDoc,
-  setDoc,
-  getDocs,
-  updateDoc,
-  query,
-  where,
-  writeBatch,
-} from "firebase/firestore";
-import "../App.css";
+import React, { useState, useEffect } from 'react';
+import { db } from '../firebase';
+import { collection, doc, getDoc, setDoc, getDocs, updateDoc, query, where, writeBatch, deleteDoc } from 'firebase/firestore'; // Ensure setDoc is imported
+import '../App.css';
 
 export default function SysConfig() {
   const [configData, setConfigData] = useState({
-    currLOG: "",
+    currLOG: '',
     depts: [],
     subGroups: [],
-    deptNAPs: {}, // Not directly edited here, but shown
-    sgNAPs: {}, // Not directly edited here, but shown
+    deptNAPs: {},
+    sgNAPs: {},
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState({ text: "", type: "" }); // type can be 'success' or 'error'
-  const [activeTab, setActiveTab] = useState("general"); // 'general', 'departments', 'subgroups', 'stats'
+  const [message, setMessage] = useState({ text: '', type: '' });
+  const [activeTab, setActiveTab] = useState('general');
 
-  const [newDept, setNewDept] = useState("");
-  const [newSubGroup, setNewSubGroup] = useState("");
+  const [newDept, setNewDept] = useState('');
+  const [newSubGroup, setNewSubGroup] = useState('');
   const [extracting, setExtracting] = useState(false);
   const [updatingStats, setUpdatingStats] = useState(false);
   const [syncingVolunteers, setSyncingVolunteers] = useState(false);
+  const [resettingNAPs, setResettingNAPs] = useState(false); // New state for NAP reset
 
   const showMessage = (text, type) => {
     setMessage({ text, type });
-    setTimeout(() => setMessage({ text: "", type: "" }), 3000);
+    setTimeout(() => setMessage({ text: '', type: '' }), 7000); // Increased timeout for very important messages
   };
 
   const fetchConfigData = async () => {
@@ -45,9 +36,8 @@ export default function SysConfig() {
       if (configSnapshot.exists()) {
         setConfigData((prev) => ({ ...prev, ...configSnapshot.data() }));
       } else {
-        // Initialize with default if not exists
         const defaultConfig = {
-          currLOG: "LOG000001",
+          currLOG: "LOG000001", // Default if not set
           depts: [],
           subGroups: [],
           deptNAPs: {},
@@ -161,11 +151,13 @@ export default function SysConfig() {
 
   const syncVolunteerDocuments = async () => {
     setSyncingVolunteers(true);
+    showMessage('Syncing vLOGs/NAPs documents... This might take a moment.', 'info');
     try {
       const volunteersSnapshot = await getDocs(collection(db, "Volunteers"));
       let createdVLogs = 0;
       let createdNAPs = 0;
-      const batch = writeBatch(db);
+      let batch = writeBatch(db);
+      let batchCounter = 0;
 
       for (const volunteerDoc of volunteersSnapshot.docs) {
         const volunteerData = volunteerDoc.data();
@@ -173,31 +165,39 @@ export default function SysConfig() {
 
         if (!NV_ID) continue;
 
-        // Check vLOGs
-        const vLogsQuery = query(collection(db, "vLOGs"), where("NV_ID", "==", NV_ID));
-        const vLogsSnap = await getDocs(vLogsQuery);
-        if (vLogsSnap.empty) {
-          const vLogRef = doc(collection(db, "vLOGs"));
+        // Check and create vLOGs using NV_ID as document ID
+        const vLogRef = doc(db, "vLOGs", NV_ID);
+        const vLogSnap = await getDoc(vLogRef); // Efficiently check existence
+        if (!vLogSnap.exists()) {
           batch.set(vLogRef, { NV_ID, logs: [] });
           createdVLogs++;
+          batchCounter++;
         }
 
-        // Check NAPs
-        const napsQuery = query(collection(db, "NAPs"), where("NV_ID", "==", NV_ID));
-        const napsSnap = await getDocs(napsQuery);
-        if (napsSnap.empty) {
-          const napRef = doc(collection(db, "NAPs"));
+        // Check and create NAPs using NV_ID as document ID
+        const napRef = doc(db, "NAPs", NV_ID);
+        const napSnap = await getDoc(napRef); // Efficiently check existence
+        if (!napSnap.exists()) {
           const defaultNapData = { NV_ID, Roll_No: volunteerData.Roll_No || "", Unit: volunteerData.UNIT || "", TotalNAPs: 0 };
           for (let i = 1; i <= 19; i++) defaultNapData[i.toString()] = 0;
           batch.set(napRef, defaultNapData);
           createdNAPs++;
+          batchCounter++;
+        }
+        
+        if (batchCounter >= 490) {
+            await batch.commit();
+            batch = writeBatch(db);
+            batchCounter = 0;
         }
       }
-      await batch.commit();
-      showMessage(`Synced documents: ${createdVLogs} vLOGs, ${createdNAPs} NAPs created.`, "success");
+      if (batchCounter > 0) {
+        await batch.commit();
+      }
+      showMessage(`Sync complete: ${createdVLogs} vLOGs, ${createdNAPs} NAPs documents ensured/created.`, 'success');
     } catch (error) {
       console.error("Error syncing documents:", error);
-      showMessage(`Error syncing documents: ${error.message}`, "error");
+      showMessage(`Error syncing documents: ${error.message}`, 'error');
     } finally {
       setSyncingVolunteers(false);
     }
@@ -249,6 +249,77 @@ export default function SysConfig() {
     }
   };
 
+  const handleResetAllNAPs = async () => {
+    const confirmationPrompt = 
+      "EXTREME WARNING: This action will:\n" +
+      "1. Reset ALL NAPs (category points and TotalNAPs) to ZERO for every volunteer.\n" +
+      "2. Delete ALL documents in the 'LOGs' collection.\n" +
+      "3. Delete ALL documents in the 'vLOGs' collection.\n" +
+      "4. Reset the 'currLOG' ID in system config to 'LOG240001'.\n" +
+      "5. Clear aggregated NAPs statistics (deptNAPs and sgNAPs).\n\n" +
+      "This action is IRREVERSIBLE and will result in significant data loss.\n" +
+      "To confirm, type 'CONFIRM' in the box below:";
+
+    const userInput = window.prompt(confirmationPrompt);
+
+    if (userInput !== "CONFIRM") {
+      showMessage('NAPs and Logs reset cancelled by user or incorrect confirmation.', 'info');
+      return;
+    }
+
+    setResettingNAPs(true);
+    showMessage('Performing full system reset (NAPs, LOGs, vLOGs, currLOG)... This may take some time.', 'info');
+
+    try {
+      const batch = writeBatch(db);
+      
+      // 1. Reset NAPs collection
+      const napsCollectionRef = collection(db, "NAPs");
+      const napsSnapshot = await getDocs(napsCollectionRef);
+      napsSnapshot.forEach((napDoc) => {
+        const napDocRef = doc(db, "NAPs", napDoc.id);
+        const updateData = { TotalNAPs: 0 };
+        for (let i = 1; i <= 19; i++) {
+          updateData[i.toString()] = 0;
+        }
+        batch.update(napDocRef, updateData);
+      });
+
+      // 2. Delete all documents in LOGs collection
+      const logsCollectionRef = collection(db, "LOGs");
+      const logsSnapshot = await getDocs(logsCollectionRef);
+      logsSnapshot.forEach((logDoc) => {
+        batch.delete(doc(db, "LOGs", logDoc.id));
+      });
+
+      // 3. Delete all documents in vLOGs collection
+      const vLogsCollectionRef = collection(db, "vLOGs");
+      const vLogsSnapshot = await getDocs(vLogsCollectionRef);
+      vLogsSnapshot.forEach((vLogDoc) => {
+        batch.delete(doc(db, "vLOGs", vLogDoc.id));
+      });
+
+      // 4. Update systemConfig: reset currLOG, deptNAPs, sgNAPs
+      const configRef = doc(db, 'configs', 'systemConfig');
+      batch.update(configRef, {
+        currLOG: "LOG240001",
+        deptNAPs: {},
+        sgNAPs: {}
+      });
+      
+      await batch.commit();
+
+      await fetchConfigData(); 
+      showMessage('Full system reset successful: All NAPs, LOGs, vLOGs cleared, and currLOG updated.', 'success');
+    } catch (error) {
+      console.error("Error during full system reset:", error);
+      showMessage(`Error during full system reset: ${error.message}`, 'error');
+    } finally {
+      setResettingNAPs(false);
+    }
+  };
+
+
   if (loading) return <div className="loading-container"><p>Loading System Configuration...</p></div>;
 
   return (
@@ -277,7 +348,7 @@ export default function SysConfig() {
               <label htmlFor="currLOG" className="form-label">Current LOG ID Format:</label>
               <input type="text" name="currLOG" id="currLOG" value={configData.currLOG} onChange={handleInputChange} className="form-input" />
             </div>
-            <button onClick={() => handleSaveConfig()} className="btn btn-primary" disabled={saving}>
+            <button onClick={() => handleSaveConfig()} className="btn btn-primary" disabled={saving || resettingNAPs}>
               {saving ? 'Saving...' : 'Save General Settings'}
             </button>
           </div>
@@ -349,16 +420,26 @@ export default function SysConfig() {
           <div className="config-section">
             <h3 className="section-title">System Actions</h3>
             <div className="action-buttons-group">
-                <button onClick={extractFromVolunteers} className="btn btn-secondary" disabled={extracting}>
+                <button onClick={extractFromVolunteers} className="btn btn-secondary" disabled={extracting || resettingNAPs || syncingVolunteers || updatingStats}>
                 {extracting ? 'Extracting...' : 'Extract Depts/Units from Volunteers'}
                 </button>
-                <button onClick={syncVolunteerDocuments} className="btn btn-secondary" disabled={syncingVolunteers}>
+                <button onClick={syncVolunteerDocuments} className="btn btn-secondary" disabled={syncingVolunteers || resettingNAPs || extracting || updatingStats}>
                 {syncingVolunteers ? 'Syncing...' : 'Sync vLOGs/NAPs Docs'}
                 </button>
-                <button onClick={updateOverallStats} className="btn btn-secondary" disabled={updatingStats}>
+                <button onClick={updateOverallStats} className="btn btn-secondary" disabled={updatingStats || resettingNAPs || extracting || syncingVolunteers}>
                 {updatingStats ? 'Updating...' : 'Update Overall NAPs Stats'}
                 </button>
+                <button 
+                  onClick={handleResetAllNAPs} 
+                  className="btn btn-danger"
+                  disabled={resettingNAPs || extracting || syncingVolunteers || updatingStats}
+                >
+                  {resettingNAPs ? 'Performing Full Reset...' : 'Full System Reset (NAPs & Logs)'}
+                </button>
             </div>
+            <p className="form-hint">
+              <strong>Warning:</strong> "Full System Reset" is an extremely destructive operation. It clears all NAPs, deletes all LOGs and vLOGs, and resets the Log ID counter. Use with extreme caution.
+            </p>
           </div>
         )}
       </div>

@@ -133,6 +133,15 @@ export default function VolunteerLogs() {
         >
           {loading && isFetchingInitial ? 'Fetching...' : 'Fetch Logs'}
         </button>
+        <button
+          onClick={() => fetchInitialLogs(nvId)}
+          className="btn"
+          style={{ backgroundColor: '#6c757d', color: 'white', marginLeft: '10px' }}
+          disabled={loading}
+          title="Refresh current view"
+        >
+          Refresh ⟳
+        </button>
       </div>
 
       {loading && !logs.length ? (

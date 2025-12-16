@@ -9,6 +9,7 @@ import {
   query,
   where,
   updateDoc,
+  setDoc,
 } from "firebase/firestore";
 // Import the CSS file at the top of your component
 import "../App.css";
@@ -82,49 +83,41 @@ export default function SingleNAPAssign() {
       });
 
       // 5. Update vLOGs collection - find or create document for this NV_ID
-      const vLogsQuery = query(
-        collection(db, "vLOGs"),
-        where("NV_ID", "==", NV_ID)
-      );
-      const vLogsSnap = await getDocs(vLogsQuery);
+      const vLogDocRef = doc(db, "vLOGs", NV_ID);
+      const vLogDocSnap = await getDoc(vLogDocRef);
 
-      if (!vLogsSnap.empty) {
+      if (vLogDocSnap.exists()) {
         // User exists in vLOGs, update logs array
-        const vLogsDoc = vLogsSnap.docs[0];
-        const currentLogs = vLogsDoc.data().logs || [];
-        await updateDoc(vLogsDoc.ref, {
+        const currentLogs = vLogDocSnap.data().logs || [];
+        await updateDoc(vLogDocRef, {
           logs: [...currentLogs, logId],
         });
       } else {
         // Create new document in vLOGs
-        await addDoc(collection(db, "vLOGs"), {
+        await setDoc(vLogDocRef, {
           NV_ID,
           logs: [logId],
         });
       }
       
       // 6. Update NAPs collection
-      const napQuery = query(
-        collection(db, "NAPs"),
-        where("NV_ID", "==", NV_ID)
-      );
-      const napSnap = await getDocs(napQuery);
+      const napDocRef = doc(db, "NAPs", NV_ID);
+      const napDocSnap = await getDoc(napDocRef);
       
-      if (!napSnap.empty) {
+      if (napDocSnap.exists()) {
         // User exists in NAPs, update points
-        const napDoc = napSnap.docs[0];
-        const data = napDoc.data();
+        const data = napDocSnap.data();
         const categoryValue = parseInt(data[Category] || 0, 10);
         const awarded = parseInt(NAPs, 10);
         const totalNAPs = parseInt(data.TotalNAPs || 0, 10);
 
-        await updateDoc(napDoc.ref, {
+        await updateDoc(napDocRef, {
           [Category]: categoryValue + awarded,
           TotalNAPs: totalNAPs + awarded,
         });
       } else {
         // Create new document in NAPs
-        await addDoc(collection(db, "NAPs"), {
+        await setDoc(napDocRef, {
           NV_ID,
           Roll_No: "",
           Unit: "",

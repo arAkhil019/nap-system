@@ -1,19 +1,20 @@
 import React, { useState } from "react";
 import VolunteerLogs from "./VolunteerLogs";
 import SingleNAPAssign from "./SingleNAPAssign";
-import AddVolunteerForm from "./AddVolunteerForm"; // Create this if it doesn't exist
+import AddVolunteerForm from "./AddVolunteerForm";
 import MultiNAPsAssign from "./MultiNAPsAssign";
 import ImportVolunteers from "./ImportVolunteers";
 import SysConfig from "./SysConfig";
-import "../App.css"; // Ensure this path is correct for your project structure
-import Display from "./Display"; 
+import "../App.css";
+import Display from "./Display";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
+import EditVolunteers from "./EditVolunteers"; // Import the new component
 
 export default function AdminDashboard() {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState("logs");
+  const [activeTab, setActiveTab] = useState("display"); // Default to display NAPs
 
   async function handleLogout() {
     try {
@@ -43,19 +44,11 @@ export default function AdminDashboard() {
       <div className="tab-navigation">
         <button
           className={`tab-button ${
-            activeTab === "logs" ? "active" : ""
+            activeTab === "display" ? "active" : ""
           }`}
-          onClick={() => setActiveTab("logs")}
+          onClick={() => setActiveTab("display")}
         >
-          View Logs
-        </button>
-        <button
-          className={`tab-button ${
-            activeTab === "assign" ? "active" : ""
-          }`}
-          onClick={() => setActiveTab("assign")}
-        >
-          Assign NAP
+          Display NAPs
         </button>
         <button
           className={`tab-button ${
@@ -67,11 +60,27 @@ export default function AdminDashboard() {
         </button>
         <button
           className={`tab-button ${
+            activeTab === "editVolunteers" ? "active" : ""
+          }`}
+          onClick={() => setActiveTab("editVolunteers")}
+        >
+          Manage Volunteers
+        </button>
+        <button
+          className={`tab-button ${
             activeTab === "importVolunteers" ? "active" : ""
           }`}
           onClick={() => setActiveTab("importVolunteers")}
         >
           Import Volunteers
+        </button>
+        <button
+          className={`tab-button ${
+            activeTab === "assign" ? "active" : ""
+          }`}
+          onClick={() => setActiveTab("assign")}
+        >
+          Assign NAP
         </button>
         <button
           className={`tab-button ${
@@ -83,31 +92,32 @@ export default function AdminDashboard() {
         </button>
         <button
           className={`tab-button ${
+            activeTab === "logs" ? "active" : ""
+          }`}
+          onClick={() => setActiveTab("logs")}
+        >
+          View Activity Logs
+        </button>
+        <button
+          className={`tab-button ${
             activeTab === "sysConfig" ? "active" : ""
           }`}
           onClick={() => setActiveTab("sysConfig")}
         >
           System Configuration
         </button>
-        <button
-          className={`tab-button ${
-            activeTab === "display" ? "active" : ""
-          }`}
-          onClick={() => setActiveTab("display")}
-        >
-          Display NAPs
-        </button>
       </div>
 
       {/* Tab Content */}
       <div className="tab-content">
+        {activeTab === "display" && <Display />}
         {activeTab === "logs" && <VolunteerLogs />}
         {activeTab === "assign" && <SingleNAPAssign />}
         {activeTab === "addVolunteer" && <AddVolunteerForm />}
+        {activeTab === "editVolunteers" && <EditVolunteers />} {/* Add new component here */}
         {activeTab === "multiAssign" && <MultiNAPsAssign />}
         {activeTab === "importVolunteers" && <ImportVolunteers />}
         {activeTab === "sysConfig" && <SysConfig />}
-        {activeTab === "display" && <Display />}
       </div>
     </div>
   );
